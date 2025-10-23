@@ -1,4 +1,4 @@
-from lepton_zoo import Dataset, DatasetType, LHCRun, NanoADODVersion, ProcessGroup, Year
+from cmsmusic import Dataset, DatasetType, LHCRun, NanoADODVersion, ProcessGroup, Year
 
 datasets: list[Dataset] = []
 

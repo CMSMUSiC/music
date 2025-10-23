@@ -6,11 +6,9 @@ from typing import Self
 
 import uproot
 from dbs.apis.dbsClient import DbsApi
-from numpy import result_type
 from pydantic import BaseModel, model_validator
 from rich.progress import track
 
-from lepton_zoo import redirectors
 
 from .eras import LHCRun, NanoADODVersion, Year
 from .redirectors import Redirectors
@@ -94,12 +92,14 @@ class Dataset(BaseModel):
             self.process_name = self.das_names[0].split("/")[1]
 
         if self.process_name is None or self.process_name == "":
-            raise ValueError(f"Bad name for {self}")
+            raise ValueError(f"Bad process name for {self}")
 
         return self
 
     @model_validator(mode="after")
     def build_lfn_list(self) -> Self:
+        MIN_PERCENT_FILES = 0.6
+
         if self.lfns is None:
             self.lfns = []
             for das_name in self.das_names:
@@ -120,7 +120,7 @@ class Dataset(BaseModel):
                         if success:
                             results.append(f)
 
-                if len(results) / len(all_files) < 0.6:
+                if len(results) / len(all_files) < MIN_PERCENT_FILES:
                     raise RuntimeError(f"Not enough files passed test for {das_name}")
 
                 self.lfns += results

@@ -1,167 +1,15 @@
 import importlib
 import json
 import os
-import subprocess as sp
-import sys
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Literal, Sequence, Union
 
+from cmsmusic.datasets import DatasetType
 import typer
 from rich.progress import track
 
-from lepton_zoo import Year
-from lepton_zoo.datasets import Dataset
-
-StreamMode = Literal["auto", "lines", "chars"]
-
-
-def run_stream_shell(
-    cmd: Union[str, Sequence[str]],
-    *,
-    cwd: str | None = None,
-    env: dict | None = None,
-    shell_exe: str | None = "/bin/bash",  # POSIX shell to run under
-    merge_stderr: bool = True,  # show progress bars printed to stderr
-    stream_mode: StreamMode = "auto",  # "auto" picks "chars" if merge_stderr else "lines"
-    line_buffer_hint: bool = True,  # add stdbuf (POSIX) to coax timely flushing
-) -> int:
-    """
-    Run a command *via a shell* and stream output as it appears.
-
-    - If stream_mode="chars", reads raw bytes and writes them through (best for progress bars).
-    - If stream_mode="lines", reads text lines (nice for typical logs).
-    - "auto": uses "chars" when merge_stderr=True (common for progress bars), else "lines".
-    """
-    # Normalize to a single command string for the shell
-    if not isinstance(cmd, str):
-        import shlex
-
-        cmd = " ".join(shlex.quote(str(c)) for c in cmd)
-
-    # Heuristic: if user merges stderr (likely progress bars), prefer char streaming
-    if stream_mode == "auto":
-        stream_mode = "chars" if merge_stderr else "lines"
-
-    # Reduce buffering of the child (POSIX)
-    if line_buffer_hint and os.name == "posix":
-        # For progress bars, unbuffered (-o0 -e0) makes \r updates snappy
-        if stream_mode == "chars":
-            cmd = f"stdbuf -o0 -e0 {cmd}"
-        else:
-            cmd = f"stdbuf -oL -eL {cmd}"
-
-    # Build Popen kwargs
-    popen_kwargs = dict(
-        cwd=cwd,
-        env=env,
-        shell=True,
-    )
-    if os.name == "posix" and shell_exe:
-        popen_kwargs["executable"] = shell_exe
-
-    # Choose text/binary mode based on streaming style
-    if stream_mode == "chars":
-        popen_kwargs.update(
-            stdout=sp.PIPE,
-            stderr=sp.STDOUT if merge_stderr else sp.PIPE,
-            text=False,
-            bufsize=0,
-        )  # binary, unbuffered
-    else:  # "lines"
-        popen_kwargs.update(
-            stdout=sp.PIPE,
-            stderr=sp.STDOUT if merge_stderr else sp.PIPE,
-            text=True,
-            bufsize=1,
-        )  # text, line-buffered
-
-    # Launch
-    proc = sp.Popen(cmd, **popen_kwargs)
-
-    try:
-        if merge_stderr:
-            # Single stream path
-            assert proc.stdout is not None
-            if stream_mode == "chars":
-                out = proc.stdout
-                w = sys.stdout.buffer
-                for chunk in iter(lambda: out.read(1024), b""):
-                    w.write(chunk)
-                    w.flush()
-            else:
-                for line in proc.stdout:
-                    print(line, end="")
-        else:
-            # Dual-stream path
-            import queue
-            import threading
-
-            q: "queue.Queue[tuple[str, bytes|str|None]]" = queue.Queue()
-
-            def pump_bytes(stream, tag):
-                for chunk in iter(lambda: stream.read(1024), b""):
-                    q.put((tag, chunk))
-                q.put((tag, None))
-
-            def pump_lines(stream, tag):
-                for line in iter(stream.readline, ""):
-                    q.put((tag, line))
-                q.put((tag, None))
-
-            if stream_mode == "chars":
-                t_out = threading.Thread(
-                    target=pump_bytes, args=(proc.stdout, "out"), daemon=True
-                )
-                t_err = threading.Thread(
-                    target=pump_bytes, args=(proc.stderr, "err"), daemon=True
-                )
-            else:
-                t_out = threading.Thread(
-                    target=pump_lines, args=(proc.stdout, "out"), daemon=True
-                )
-                t_err = threading.Thread(
-                    target=pump_lines, args=(proc.stderr, "err"), daemon=True
-                )
-
-            t_out.start()
-            t_err.start()
-
-            done = {"out": False, "err": False}
-            while not all(done.values()):
-                tag, payload = q.get()
-                if payload is None:
-                    done[tag] = True
-                    continue
-                if stream_mode == "chars":
-                    buf = sys.stdout.buffer
-                    if tag == "err":
-                        # minimal prefixing without breaking \r animations too much
-                        buf.write(b"[stderr] ")
-                    buf.write(payload)
-                    buf.flush()
-                else:
-                    if tag == "err":
-                        print(f"[stderr] {payload}", end="")
-                    else:
-                        print(payload, end="")
-
-            t_out.join()
-            t_err.join()
-    except KeyboardInterrupt:
-        # Forward Ctrl-C to the whole group on POSIX
-        try:
-            if os.name == "posix":
-                import signal
-
-                os.killpg(proc.pid, signal.SIGINT)
-        except Exception:
-            pass
-        finally:
-            proc.wait()
-    finally:
-        return proc.wait()
+import cmsmusic as msc
 
 
 def execution_time(func):
@@ -187,7 +35,7 @@ plotter_app = typer.Typer(
 )
 app = typer.Typer(
     name="lepzoo",
-    help="Lepton Zoo analysis.",
+    help="CMS MUSiC Analysis.",
     pretty_exceptions_enable=False,
 )
 app.add_typer(classification_app, name="classification")
@@ -229,19 +77,33 @@ def list_processes(
 
     with parsed_datasets_file.open("r", encoding="utf-8") as f:
         parsed_datasets = json.load(f)
-    parsed_datasets: list[Dataset] = [
-        Dataset.model_validate(obj) for obj in parsed_datasets
+    parsed_datasets: list[msc.Dataset] = [
+        msc.Dataset.model_validate(obj) for obj in parsed_datasets
     ]
 
+    print("\nData:")
     for d in parsed_datasets:
-        print(d.short_str())
+        if d.dataset_type == DatasetType.DATA:
+            print(d.short_str())
+
+    print("\nBackground:")
+    for d in parsed_datasets:
+        if d.dataset_type == DatasetType.BACKGROUND:
+            print(d.short_str())
+
+    print("\nSignal:")
+    for d in parsed_datasets:
+        if d.dataset_type == DatasetType.SIGNAL:
+            print(d.short_str())
+
+    print()
 
 
 @classification_app.command()
 @execution_time
 def run_serial(
     process_name: str,
-    year: Year,
+    year: msc.Year,
     max_files: int = -1,
     file_index: int | None = None,
     parsed_datasets_file: Path = Path("parsed_datasets.json"),
@@ -251,16 +113,16 @@ def run_serial(
     """
     Run selection and classification.
     """
-    from lepton_zoo import run_classification
+    from cmsmusic import run_classification
 
     with parsed_datasets_file.open("r", encoding="utf-8") as f:
-        parsed_datasets: list[Dataset] = json.load(f)
-    parsed_datasets: list[Dataset] = [
-        Dataset.model_validate(obj) for obj in parsed_datasets
+        parsed_datasets: list[msc.Dataset] = json.load(f)
+    parsed_datasets: list[msc.Dataset] = [
+        msc.Dataset.model_validate(obj) for obj in parsed_datasets
     ]
 
     if enable_cache:
-        os.system("mkdir -p nanoaod_files_cache")
+        Path("nanoaod_files_cache").mkdir(parents=True, exist_ok=True)
 
     for dataset in parsed_datasets:
         if dataset.process_name == process_name and dataset.year == year:
@@ -277,10 +139,6 @@ def run_serial(
                         if max_files <= 0 or (max_files > 0 and i + 1 <= max_files):
                             run_classification(i, dataset, silence_mode, enable_cache)
                 case int():
-                    if not silence_mode:
-                        print(
-                            f"Processing {dataset.lfns[file_index]} of {dataset.short_str()} ..."
-                        )
                     run_classification(file_index, dataset, silence_mode, enable_cache)
 
 
@@ -288,7 +146,7 @@ def run_serial(
 @execution_time
 def run_parallel(
     process_name: str | None = None,
-    year: Year | None = None,
+    year: msc.Year | None = None,
     max_files: int = -1,
     parsed_datasets_file: Path = Path("parsed_datasets.json"),
 ):
@@ -297,9 +155,9 @@ def run_parallel(
     """
 
     with parsed_datasets_file.open("r", encoding="utf-8") as f:
-        parsed_datasets: list[Dataset] = json.load(f)
-    parsed_datasets: list[Dataset] = [
-        Dataset.model_validate(obj) for obj in parsed_datasets
+        parsed_datasets: list[msc.Dataset] = json.load(f)
+    parsed_datasets: list[msc.Dataset] = [
+        msc.Dataset.model_validate(obj) for obj in parsed_datasets
     ]
 
     cmds: list[str] = []
@@ -310,7 +168,7 @@ def run_parallel(
                 for i, _ in enumerate(dataset.lfns):
                     if max_files <= 0 or (max_files > 0 and i + 1 <= max_files):
                         cmds.append(
-                            f"lepzoo classification run-serial {dataset.process_name} {dataset.year} --file-index {i} --silence-mode"
+                            f"music classification run-serial {dataset.process_name} {dataset.year} --file-index {i} --silence-mode"
                         )
 
     Path("cmds.txt").write_text("\n".join(cmds) + "\n", encoding="utf-8")
@@ -320,7 +178,7 @@ def run_parallel(
     os.system("rm -rf parallel_outputs")
     os.system("mkdir -p parallel_outputs")
 
-    rc = run_stream_shell(
+    rc = msc.run_stream_shell(
         cmd,
         merge_stderr=True,  # show the --bar progress
         stream_mode="auto",  # auto picks "chars" when merge_stderr=True
