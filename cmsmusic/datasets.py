@@ -9,7 +9,6 @@ from dbs.apis.dbsClient import DbsApi
 from pydantic import BaseModel, model_validator
 from rich.progress import track
 
-
 from .eras import LHCRun, NanoADODVersion, Year
 from .redirectors import Redirectors
 
@@ -103,7 +102,7 @@ class Dataset(BaseModel):
         if self.lfns is None:
             self.lfns = []
             for das_name in self.das_names:
-                print(f"Testing files for {das_name}...")
+                print(f"\nTesting files for {das_name}...")
                 all_files = [
                     file["logical_file_name"].strip()
                     for file in dbs.listFiles(dataset=das_name)
