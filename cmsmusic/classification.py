@@ -1,7 +1,7 @@
 import logging
 
 from .datasets import Dataset
-from .events import Events
+from .events import EventsBuilder
 
 logger = logging.getLogger("Classification")
 
@@ -25,9 +25,9 @@ def run_classification(
 
     file_to_process = dataset.lfns[file_index]
 
-    events = Events.build_events(file_to_process, enable_cache)
+    events = EventsBuilder(file_to_process, enable_cache).build()
 
     if verbose:
-        logger.info(events.muons.charge)
-        logger.info(events.muons.px)
+        logger.info(events.data.muons.charge)
+        logger.info(events.data.muons.px)
     return

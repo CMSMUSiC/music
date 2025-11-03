@@ -51,16 +51,21 @@ def load_file(file_lfn: str, enable_cache: bool) -> uproot.TTree:
 
 class Events(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    muons: ak.Array
-    electrons: ak.Array
-    taus: ak.Array
-    photons: ak.Array
-    jets: ak.Array
-    met: ak.Array
+    data: ak.Array
 
-    @staticmethod
-    def build_events(input_file: str, enable_cache: bool) -> "Events":
-        evts = load_file(input_file, enable_cache)
+
+class EventsBuilder:
+    def __init__(self, input_file: str, enable_cache: bool) -> None:
+        self.input_file = input_file
+        self.enable_cache = enable_cache
+
+    def build(self) -> Events:
+        if self.input_file is None:
+            raise ValueError("input_file not set")
+        if self.enable_cache is None:
+            raise ValueError("input_file not set")
+
+        evts = load_file(self.input_file, self.enable_cache)
         logger.info(type(evts))
 
         muons = _build_muons(evts)
@@ -78,11 +83,19 @@ class Events(BaseModel):
         jets = _build_jets(evts)
         met = _build_met(evts, jets)
 
-        return Events(
-            muons=muons,
-            electrons=electrons,
-            taus=taus,
-            photons=photons,
-            jets=jets,
-            met=met,
+        data = ak.zip(
+            {
+                "muons": muons,
+                "electrons": electrons,
+                "taus": taus,
+                "photons": photons,
+                "jets": jets,
+                "met": met,
+            },
+            depth_limit=1,  # zip at the event level only
         )
+        print(data)
+        print(data.muons[1])
+        print(data.muons.px)
+
+        return Events(data=data)
