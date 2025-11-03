@@ -1,15 +1,17 @@
 import importlib
 import json
+import logging
 import os
 import time
 from functools import wraps
 from pathlib import Path
 
-from cmsmusic.datasets import DatasetType
 import typer
 from rich.progress import track
 
 import cmsmusic as msc
+from cmsmusic.datasets import DatasetType
+from cmsmusic.logging_config import setup_logging
 
 
 def execution_time(func):
@@ -50,6 +52,10 @@ def build(
     """
     Build analysis config.
     """
+    logging_level = logging.INFO
+    setup_logging(logging_level)
+
+    logger = logging.getLogger("MUSiC")
 
     datasets = importlib.import_module(str(inputs).replace(".py", ""))
 
@@ -63,7 +69,7 @@ def build(
             indent=2,
         )
 
-    print(f"Successfully Parsed and build datasets ...")
+    logger.info(f"Successfully Parsed and build datasets ...")
 
 
 @app.command()
@@ -107,13 +113,20 @@ def run_serial(
     max_files: int = -1,
     file_index: int | None = None,
     parsed_datasets_file: Path = Path("parsed_datasets.json"),
-    silence_mode: bool = False,
+    verbose: bool = False,
     enable_cache: bool = False,
 ):
     """
     Run selection and classification.
     """
     from cmsmusic import run_classification
+
+    logging_level = logging.WARNING
+    if verbose:
+        logging_level = logging.INFO
+    setup_logging(logging_level)
+
+    _ = logging.getLogger("MUSiC")
 
     with parsed_datasets_file.open("r", encoding="utf-8") as f:
         parsed_datasets: list[msc.Dataset] = json.load(f)
@@ -137,9 +150,9 @@ def run_serial(
                         )
                     ):
                         if max_files <= 0 or (max_files > 0 and i + 1 <= max_files):
-                            run_classification(i, dataset, silence_mode, enable_cache)
+                            run_classification(i, dataset, verbose, enable_cache)
                 case int():
-                    run_classification(file_index, dataset, silence_mode, enable_cache)
+                    run_classification(file_index, dataset, verbose, enable_cache)
 
 
 @classification_app.command()
@@ -153,6 +166,10 @@ def run_parallel(
     """
     Run selection and classification.
     """
+    logging_level = logging.INFO
+    setup_logging(logging_level)
+
+    logger = logging.getLogger("MUSiC")
 
     with parsed_datasets_file.open("r", encoding="utf-8") as f:
         parsed_datasets: list[msc.Dataset] = json.load(f)
@@ -180,11 +197,11 @@ def run_parallel(
 
     rc = msc.run_stream_shell(
         cmd,
-        merge_stderr=True,  # show the --bar progress
-        stream_mode="auto",  # auto picks "chars" when merge_stderr=True
-        shell_exe="/bin/bash",  # ensure bash features if you use them
+        merge_stderr=True,
+        stream_mode="auto",
+        shell_exe="/bin/bash",
     )
-    print(f"\n[exit code: {rc}]")
+    logger.info(f"\n[exit code: {rc}]")
 
 
 @plotter_app.command()
@@ -192,11 +209,18 @@ def run_parallel(
 def plot(
     distribution_name: str,
     force: bool = typer.Option(False, help="Brute force plot."),
+    verbose: bool = False,
 ):
     """
     Run plotter.
     """
-    pass
+
+    logging_level = logging.WARNING
+    if verbose:
+        logging_level = logging.INFO
+    setup_logging(logging_level)
+
+    _ = logging.getLogger("MUSiC")
 
 
 if __name__ == "__main__":

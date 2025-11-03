@@ -1,3 +1,4 @@
+import logging
 import subprocess
 from pathlib import Path
 
@@ -13,16 +14,18 @@ from .muons import _build_muons
 from .photons import _build_photons
 from .taus import _build_taus
 
+logger = logging.getLogger("Events")
+
 
 def load_file(file_lfn: str, enable_cache: bool) -> uproot.TTree:
     if enable_cache:
         local_path = Path(f"nanoaod_files_cache/{file_lfn.replace('/', '_')}")
         if local_path.exists():
-            print("File already cached...")
+            logger.info("File already cached...")
             nanoaod_file = uproot.open(f"{str(local_path)}:Events")
             return nanoaod_file  # type: ignore
         else:
-            print(f"Caching {file_lfn}...")
+            logger.info(f"Caching {file_lfn}...")
             for redirector in Redirectors:
                 try:
                     subprocess.run(
@@ -58,16 +61,16 @@ class Events(BaseModel):
     @staticmethod
     def build_events(input_file: str, enable_cache: bool) -> "Events":
         evts = load_file(input_file, enable_cache)
-        print(type(evts))
+        logger.info(type(evts))
 
         muons = _build_muons(evts)
-        print(muons.pt)
-        print(muons.muons_pt_up)
-        print(muons.muons_pt_down)
-        print(muons.mass)
-        print(muons.muons_mass_up)
-        print(muons.muons_mass_down)
-        print(type(muons))
+        logger.info(muons.pt)
+        logger.info(muons.muons_pt_up)
+        logger.info(muons.muons_pt_down)
+        logger.info(muons.mass)
+        logger.info(muons.muons_mass_up)
+        logger.info(muons.muons_mass_down)
+        logger.info(type(muons))
 
         electrons = _build_electrons(evts)
         taus = _build_taus(evts)

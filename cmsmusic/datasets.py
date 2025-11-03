@@ -1,4 +1,5 @@
 import getpass
+import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from enum import StrEnum
@@ -12,6 +13,7 @@ from rich.progress import track
 from .eras import LHCRun, NanoADODVersion, Year
 from .redirectors import Redirectors
 
+logger = logging.getLogger("Datasets")
 dbs = DbsApi("https://cmsweb.cern.ch/dbs/prod/global/DBSReader")
 
 try:
@@ -102,7 +104,7 @@ class Dataset(BaseModel):
         if self.lfns is None:
             self.lfns = []
             for das_name in self.das_names:
-                print(f"\nTesting files for {das_name}...")
+                logger.info(f"\nTesting files for {das_name}...")
                 all_files = [
                     file["logical_file_name"].strip()
                     for file in dbs.listFiles(dataset=das_name)
