@@ -20,7 +20,7 @@ def run_classification(
 
     if verbose:
         logger.info(
-            f"Processing {dataset.lfns[file_index]} of {dataset.short_str()} ..."
+            f"Processing {dataset.lfns[file_index]} from {dataset.short_str()} ..."
         )
 
     file_to_process = dataset.lfns[file_index]
