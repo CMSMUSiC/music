@@ -3,23 +3,19 @@ import subprocess
 from pathlib import Path
 
 import awkward as ak
-from numpy.typing import NDArray
-
 import uproot
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
-from cmsmusic.events.jet_veto_maps import JetVetoMaps
-
-from ..redirectors import Redirectors
 from ..datasets import Dataset
-
+from ..redirectors import Redirectors
+from .corrections.jet_veto_maps import JetVetoMaps
 from .electrons import _build_electrons
 from .jets import _build_jets
 from .met import _build_met
 from .muons import _build_muons
 from .photons import _build_photons
 from .taus import _build_taus
-from ..datasets import Dataset
 
 logger = logging.getLogger("Events")
 
@@ -59,7 +55,7 @@ def load_file(file_lfn: str, enable_cache: bool) -> uproot.TTree:
 class Events(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     data: ak.Array
-    event_filters = dict[str, list[NDArray | ak.Array]]
+    event_filters: dict[str, NDArray | ak.Array] = {}
 
     def add_event_filter(
         self,
@@ -67,7 +63,7 @@ class Events(BaseModel):
         filter_mask: NDArray | ak.Array,
     ) -> None:
         if filter_name in self.event_filters.keys():
-            raise RuntimeError(f"{filter_name} already in event_filters")
+            raise ValueError(f"{filter_name} already in event_filters")
 
         self.event_filters |= {filter_name: filter_mask}
 
@@ -122,9 +118,8 @@ class EventsBuilder:
         events = Events(data=data)
 
         jet_veto_maps = JetVetoMaps(self.dataset.year)
-        assert not isinstance(jet_veto_maps, float)
         events.add_event_filter(
-            "jet_veto_maps", jet_veto_maps(events.jets.eta, events.jets.phi)
+            "jet_veto_maps", jet_veto_maps(events.data.jets.eta, events.data.jets.phi)
         )
 
         return events

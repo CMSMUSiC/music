@@ -23,9 +23,7 @@ def run_classification(
             f"Processing {dataset.lfns[file_index]} from {dataset.short_str()} ..."
         )
 
-    file_to_process = dataset.lfns[file_index]
-
-    events = EventsBuilder(file_to_process, enable_cache).build()
+    events = EventsBuilder(dataset, file_index, enable_cache).build()
 
     if verbose:
         logger.info(events.data.muons.charge)

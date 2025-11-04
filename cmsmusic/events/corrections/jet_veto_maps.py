@@ -1,7 +1,8 @@
 import correctionlib
-from ..eras import Year
-from numpy.typing import NDArray
 import numpy as np
+from numpy.typing import NDArray
+
+from ...eras import Year
 
 
 class JetVetoMaps:
@@ -34,5 +35,15 @@ class JetVetoMaps:
 
     def __call__(
         self, eta: NDArray[np.float64], phi: NDArray[np.float64]
-    ) -> NDArray[np.float64] | float:
-        return self.evaluator.evaluate("jetvetomap", eta, phi)
+    ) -> NDArray[np.float64]:
+        res = self.evaluator.evaluate("jetvetomap", eta, phi)
+
+        match res:
+            case float():
+                res = np.array([res], dtype=np.float64)
+            case int():  # why?? lets make pyright happy...
+                res = np.array([res], dtype=np.float64)
+            case _:
+                pass
+
+        return res
