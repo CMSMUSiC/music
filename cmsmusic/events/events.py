@@ -6,13 +6,18 @@ import awkward as ak
 import uproot
 from pydantic import BaseModel, ConfigDict
 
+from cmsmusic.events.jet_veto_maps import JetVetoMaps
+
 from ..redirectors import Redirectors
+from ..datasets import Dataset
+
 from .electrons import _build_electrons
 from .jets import _build_jets
 from .met import _build_met
 from .muons import _build_muons
 from .photons import _build_photons
 from .taus import _build_taus
+from cmsmusic import datasets
 
 logger = logging.getLogger("Events")
 
@@ -66,6 +71,11 @@ class EventsBuilder:
             raise ValueError("input_file not set")
 
         evts = load_file(self.input_file, self.enable_cache)
+        # events.add_events_filter(run_lumi_filter(events))
+        # events.add_events_filter(met_filter(events))
+
+        jet_veto_maps = JetVetoMaps(dataset.year)
+        events.add_events_filter(jet_veto_maps(events.jets.eta, events.jets.phi))
         logger.info(type(evts))
 
         muons = _build_muons(evts)
