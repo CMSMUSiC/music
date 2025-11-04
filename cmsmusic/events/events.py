@@ -3,6 +3,8 @@ import subprocess
 from pathlib import Path
 
 import awkward as ak
+from numpy.typing import NDArray
+
 import uproot
 from pydantic import BaseModel, ConfigDict
 
@@ -17,7 +19,7 @@ from .met import _build_met
 from .muons import _build_muons
 from .photons import _build_photons
 from .taus import _build_taus
-from cmsmusic import datasets
+from ..datasets import Dataset
 
 logger = logging.getLogger("Events")
 
@@ -57,12 +59,25 @@ def load_file(file_lfn: str, enable_cache: bool) -> uproot.TTree:
 class Events(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     data: ak.Array
+    event_filters = dict[str, list[NDArray | ak.Array]]
+
+    def add_event_filter(
+        self,
+        filter_name: str,
+        filter_mask: NDArray | ak.Array,
+    ) -> None:
+        if filter_name in self.event_filters.keys():
+            raise RuntimeError(f"{filter_name} already in event_filters")
+
+        self.event_filters |= {filter_name: filter_mask}
 
 
 class EventsBuilder:
-    def __init__(self, input_file: str, enable_cache: bool) -> None:
-        self.input_file = input_file
+    def __init__(self, dataset: Dataset, file_index: int, enable_cache: bool) -> None:
+        assert dataset.lfns is not None
+        self.input_file = dataset.lfns[file_index]
         self.enable_cache = enable_cache
+        self.dataset = dataset
 
     def build(self) -> Events:
         if self.input_file is None:
@@ -71,11 +86,7 @@ class EventsBuilder:
             raise ValueError("input_file not set")
 
         evts = load_file(self.input_file, self.enable_cache)
-        # events.add_events_filter(run_lumi_filter(events))
-        # events.add_events_filter(met_filter(events))
 
-        jet_veto_maps = JetVetoMaps(dataset.year)
-        events.add_events_filter(jet_veto_maps(events.jets.eta, events.jets.phi))
         logger.info(type(evts))
 
         muons = _build_muons(evts)
@@ -108,4 +119,12 @@ class EventsBuilder:
         print(data.muons[1])
         print(data.muons.px)
 
-        return Events(data=data)
+        events = Events(data=data)
+
+        jet_veto_maps = JetVetoMaps(self.dataset.year)
+        assert not isinstance(jet_veto_maps, float)
+        events.add_event_filter(
+            "jet_veto_maps", jet_veto_maps(events.jets.eta, events.jets.phi)
+        )
+
+        return events
