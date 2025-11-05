@@ -76,11 +76,6 @@ class EventsBuilder:
         self.dataset = dataset
 
     def build(self) -> Events:
-        if self.input_file is None:
-            raise ValueError("input_file not set")
-        if self.enable_cache is None:
-            raise ValueError("input_file not set")
-
         evts = load_file(self.input_file, self.enable_cache)
 
         logger.info(type(evts))
@@ -97,7 +92,7 @@ class EventsBuilder:
         electrons = _build_electrons(evts)
         taus = _build_taus(evts)
         photons = _build_photons(evts)
-        jets = _build_jets(evts)
+        jets = _build_jets(evts, self.dataset)
         met = _build_met(evts, jets)
 
         data = ak.zip(
@@ -114,12 +109,13 @@ class EventsBuilder:
         print(data)
         print(data.muons[1])
         print(data.muons.px)
+        print(data.muons.pt)
 
         events = Events(data=data)
 
-        jet_veto_maps = JetVetoMaps(self.dataset.year)
+        jet_veto_maps = JetVetoMaps(self.dataset)
         events.add_event_filter(
-            "jet_veto_maps", jet_veto_maps(events.data.jets.eta, events.data.jets.phi)
+            "jet_veto_maps", jet_veto_maps(events.data.jets, events.data.muons)
         )
 
         return events

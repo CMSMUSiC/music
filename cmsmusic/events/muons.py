@@ -27,6 +27,7 @@ def _build_muons(evts: uproot.TTree) -> ak.Array:
             "Muon_phi",
             "Muon_mass",
             "Muon_charge",
+            "Muon_isPFcand",
         ]
     )
 
