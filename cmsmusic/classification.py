@@ -28,4 +28,6 @@ def run_classification(
     if verbose:
         logger.info(events.data.muons.charge)
         logger.info(events.data.muons.px)
+        logger.info(f"Num of events: {events.num_events}")
+
     return

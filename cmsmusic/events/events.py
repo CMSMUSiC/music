@@ -7,7 +7,6 @@ import uproot
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
-from cmsmusic.events import trigobjs
 
 from ..datasets import Dataset
 from ..redirectors import Redirectors
@@ -64,6 +63,10 @@ class Events(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     data: ak.Array
     event_filters: dict[str, NDArray | ak.Array] = {}
+
+    @property
+    def num_events(self) -> int:
+        return len(self.data)
 
     def add_event_filter(
         self,
