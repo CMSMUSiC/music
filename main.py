@@ -185,7 +185,7 @@ def run_parallel(
                 for i, _ in enumerate(dataset.lfns):
                     if max_files <= 0 or (max_files > 0 and i + 1 <= max_files):
                         cmds.append(
-                            f"music classification run-serial {dataset.process_name} {dataset.year} --file-index {i} --silence-mode"
+                            f"music classification run-serial {dataset.process_name} {dataset.year} --file-index {i}"
                         )
 
     Path("cmds.txt").write_text("\n".join(cmds) + "\n", encoding="utf-8")
