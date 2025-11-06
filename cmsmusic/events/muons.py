@@ -2,6 +2,8 @@ import awkward as ak
 import uproot
 import vector
 
+from .load_fields import Field, load_fields
+
 vector.register_awkward()  # <- important
 
 
@@ -17,25 +19,23 @@ def _add_muon_corr(muons: ak.Array) -> ak.Array:
     return muons
 
 
+MUON_MASS = 0.105_658_374_5
+
+
 def _build_muons(evts: uproot.TTree) -> ak.Array:
     MUON_PREFIX = "Muon_"
 
-    _muons = evts.arrays(
+    _muons = load_fields(
         [
             "Muon_pt",
             "Muon_eta",
             "Muon_phi",
-            "Muon_mass",
+            Field("Muon_mass", MUON_MASS),
             "Muon_charge",
             "Muon_isPFcand",
-        ]
+        ],
+        evts,
     )
-
-    if "Muon_mass" not in ak.fields(_muons):
-        MUON_MASS = 0.105_658_374_5
-        _muons = ak.with_field(
-            _muons, ak.ones_like(_muons["Muon_pt"]) * MUON_MASS, "Muon_mass"
-        )
 
     muons = ak.zip(
         {f[len(MUON_PREFIX) :]: _muons[f] for f in ak.fields(_muons)},

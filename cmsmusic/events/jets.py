@@ -4,13 +4,15 @@ import vector
 from .corrections.jet_id import JetId, JetIdWP
 from ..datasets import Dataset
 
+from .load_fields import load_fields
+
 vector.register_awkward()  # <- important
 
 
 def _build_jets(evts: uproot.TTree, dataset: Dataset) -> ak.Array:
     JET_PREFIX = "Jet_"
 
-    _jets = evts.arrays(
+    _jets = load_fields(
         [
             "Jet_pt",
             "Jet_eta",
@@ -23,7 +25,8 @@ def _build_jets(evts: uproot.TTree, dataset: Dataset) -> ak.Array:
             "Jet_muEF",
             "Jet_chMultiplicity",
             "Jet_neMultiplicity",
-        ]
+        ],
+        evts,
     )
 
     jets = ak.zip(

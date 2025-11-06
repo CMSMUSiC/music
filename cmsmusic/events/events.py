@@ -7,12 +7,20 @@ import uproot
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
+from cmsmusic.events import trigobjs
+
 from ..datasets import Dataset
 from ..redirectors import Redirectors
 from .corrections.jet_veto_maps import JetVetoMaps
+from .corrections.lumi_filter import LumiMask
+from .corrections.met_filters import compute_met_filters
 from .electrons import _build_electrons
 from .jets import _build_jets
 from .met import _build_met
+from .flags import _build_flags
+from .run_lumi import _build_run_lumi
+from .hlt_bits import _build_hlt_bits
+from .trigobjs import _build_trigobjs
 from .muons import _build_muons
 from .photons import _build_photons
 from .taus import _build_taus
@@ -67,6 +75,19 @@ class Events(BaseModel):
 
         self.event_filters |= {filter_name: filter_mask}
 
+    def get_event_filter(self, *, block_list: list[str] = []):
+        if len(self.event_filters) == 0:
+            raise RuntimeError("No event filter has been set")
+
+        _event_filter = ak.ones_like(
+            self.event_filters[next(iter(self.event_filters.keys()))]
+        )
+        for filter_name in self.event_filters:
+            if filter_name not in block_list:
+                _event_filter = _event_filter & self.event_filters[filter_name]
+
+        return _event_filter
+
 
 class EventsBuilder:
     def __init__(self, dataset: Dataset, file_index: int, enable_cache: bool) -> None:
@@ -80,29 +101,30 @@ class EventsBuilder:
 
         logger.info(type(evts))
 
+        run, lumi = _build_run_lumi(evts)
+        hlt_bits = _build_hlt_bits(evts)
+        trigobjs = _build_trigobjs(evts)
         muons = _build_muons(evts)
-        logger.info(muons.pt)
-        logger.info(muons.muons_pt_up)
-        logger.info(muons.muons_pt_down)
-        logger.info(muons.mass)
-        logger.info(muons.muons_mass_up)
-        logger.info(muons.muons_mass_down)
-        logger.info(type(muons))
-
         electrons = _build_electrons(evts)
         taus = _build_taus(evts)
         photons = _build_photons(evts)
         jets = _build_jets(evts, self.dataset)
         met = _build_met(evts, jets)
+        flags = _build_flags(evts)
 
         data = ak.zip(
             {
+                "run": run,
+                "luminosityBlock": lumi,
+                "hlt_bits": hlt_bits,
+                "trigobjs": trigobjs,
                 "muons": muons,
                 "electrons": electrons,
                 "taus": taus,
                 "photons": photons,
                 "jets": jets,
                 "met": met,
+                "flags": flags,
             },
             depth_limit=1,  # zip at the event level only
         )
@@ -111,11 +133,24 @@ class EventsBuilder:
         print(data.muons.px)
         print(data.muons.pt)
 
-        events = Events(data=data)
+        events = Events(data=ak.Array(data))
+
+        lumi_mask = LumiMask(self.dataset)
+        events.add_event_filter(
+            "run_lumi_filter",
+            lumi_mask(events.data.run, events.data.luminosityBlock),
+        )
+
+        events.add_event_filter(
+            "met_filters",
+            compute_met_filters(events.data.flags, self.dataset),
+        )
 
         jet_veto_maps = JetVetoMaps(self.dataset)
         events.add_event_filter(
-            "jet_veto_maps", jet_veto_maps(events.data.jets, events.data.muons)
+            "jet_veto_maps",
+            jet_veto_maps(events.data.jets, events.data.muons),
         )
+        print(events.event_filters)
 
         return events

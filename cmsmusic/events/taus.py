@@ -2,29 +2,27 @@ import awkward as ak
 import uproot
 import vector
 
+from .load_fields import Field, load_fields
+
 vector.register_awkward()  # <- important
+
+
+TAU_MASS = 1.7769
 
 
 def _build_taus(evts: uproot.TTree) -> ak.Array:
     TAU_PREFIX = "Tau_"
 
-    _taus = evts.arrays(
+    _taus = load_fields(
         [
             "Tau_pt",
             "Tau_eta",
             "Tau_phi",
-            "Tau_mass",
+            Field("Tau_mass", TAU_MASS),
             "Tau_charge",
-        ]
+        ],
+        evts,
     )
-
-    if "Tau_mass" not in ak.fields(_taus):
-        TAU_MASS = 1.7769
-        _taus = ak.with_field(
-            _taus,
-            ak.ones_like(_taus["Tau_pt"]) * TAU_MASS,
-            "Tau_mass",
-        )
 
     taus = ak.zip(
         {f[len(TAU_PREFIX) :]: _taus[f] for f in ak.fields(_taus)},

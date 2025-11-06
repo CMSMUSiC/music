@@ -1,7 +1,6 @@
 import correctionlib
 import awkward as ak
 import numpy as np
-from numpy.typing import NDArray
 
 from cmsmusic.ak_utils import flat_np_view
 
@@ -39,12 +38,12 @@ class JetVetoMaps:
             case _:
                 raise ValueError(f"Invalid year {year}")
 
-    def __call__(self, jets: ak.Array, muons: ak.Array) -> ak.Array:
+    def __call__(self, jets, muons) -> ak.Array:
         muons = muons[muons.isPFcand]
 
         # loose jet selection
         jets_mask = (
-            (jets.pt > 15)
+            (jets.pt > 15.0)
             & (jets.jet_id_tight == 1)
             & (jets.chEmEF < 0.9)
             & ak.all(deltaR_table(jets, muons) >= 0.2, axis=-1)
@@ -58,6 +57,7 @@ class JetVetoMaps:
         jets_phi = flat_np_view(jets.phi[jets_mask])
         res = self.evaluator.evaluate("jetvetomap", jets_eta, jets_phi)
 
-        res = layout_ak_array(res, jets.pt[jets_mask])
+        # jet veto maps return 0 for a good jet
+        res = ~ak.any(layout_ak_array(res, jets.pt[jets_mask]), axis=-1)
 
         return res

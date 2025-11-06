@@ -2,26 +2,22 @@ import awkward as ak
 import uproot
 import vector
 
+from .load_fields import Field, load_fields
+
 vector.register_awkward()  # <- important
 
 
 def _build_photons(evts: uproot.TTree) -> ak.Array:
     PHOTON_PREFIX = "Photon_"
 
-    _photons = evts.arrays(
-        [
-            "Photon_pt",
-            "Photon_eta",
-            "Photon_phi",
-        ]
-    )
+    fields: list[Field] = [
+        Field("Photon_pt"),
+        Field("Photon_eta"),
+        Field("Photon_phi"),
+        Field("Photon_mass", 0.0),
+    ]
 
-    if "Photon_mass" not in ak.fields(_photons):
-        _photons = ak.with_field(
-            _photons,
-            ak.zeros_like(_photons["Photon_pt"]),
-            "Photon_mass",
-        )
+    _photons = load_fields(fields, evts)
 
     photons = ak.zip(
         {f[len(PHOTON_PREFIX) :]: _photons[f] for f in ak.fields(_photons)},
