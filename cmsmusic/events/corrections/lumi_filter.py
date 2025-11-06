@@ -9,7 +9,7 @@ from numba import types
 from numba.typed import Dict
 
 from ...eras import Year
-from ...datasets import Dataset, DatasetType
+from ...dataset import Dataset, DatasetType
 from cmsmusic import datasets
 
 

@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
 
-from ..datasets import Dataset
+from ..dataset import Dataset
 from ..redirectors import Redirectors
 from .corrections.jet_veto_maps import JetVetoMaps
 from .corrections.lumi_filter import LumiMask

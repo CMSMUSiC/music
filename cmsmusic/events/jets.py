@@ -2,7 +2,7 @@ import awkward as ak
 import uproot
 import vector
 from .corrections.jet_id import JetId, JetIdWP
-from ..datasets import Dataset
+from ..dataset import Dataset
 
 from .load_fields import load_fields
 

@@ -1,6 +1,6 @@
 import awkward as ak
 from ...eras import Year
-from ...datasets import Dataset
+from ...dataset import Dataset
 
 
 def compute_met_filters(flags, dataset: Dataset) -> ak.Array:

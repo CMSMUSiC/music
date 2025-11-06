@@ -1,6 +1,6 @@
 import logging
 
-from .datasets import Dataset
+from .dataset import Dataset
 from .events import EventsBuilder
 
 logger = logging.getLogger("Classification")

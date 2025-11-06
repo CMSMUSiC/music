@@ -6,7 +6,7 @@ from cmsmusic.ak_utils import flat_np_view
 
 from ...eras import Year, LHCRun
 from ...ak_utils import *
-from ...datasets import Dataset
+from ...dataset import Dataset
 
 
 class JetVetoMaps:
