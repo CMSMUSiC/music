@@ -2,6 +2,10 @@ from typing import NamedTuple
 import awkward as ak
 import uproot
 
+import logging
+
+logger = logging.getLogger("Events")
+
 
 class Field(NamedTuple):
     name: str
@@ -20,7 +24,7 @@ def load_fields(fields: list[Field | str], evts: uproot.TTree):
             case Field():
                 _fields.append(f)
             case _:
-                raise ValueError("invalid field type")
+                raise ValueError(f"invalid field type for {f}")
 
     fields_to_load: list[Field] = []
     fields_not_found: list[Field] = []
@@ -39,7 +43,8 @@ def load_fields(fields: list[Field | str], evts: uproot.TTree):
     template_fields = _data[_fields[0]]
     for f in fields_not_found:
         if f.default is None:
-            raise ValueError(f"no default value for {f.name}")
+            logger.warning(f"no default value for {f.name}. Skipping ...")
+            continue
 
         _data = ak.with_field(
             _data,
