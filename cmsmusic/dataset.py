@@ -23,17 +23,34 @@ except KeyError as _:
     os.environ["USER"] = getpass.getuser()
 
 
+def get_sum_weights(evts: uproot.TTree):
+    has_LHEWeight_originalXWGTUP = True
+    try:
+        LHEWeight_originalXWGTUP = evts["LHEWeight_originalXWGTUP"]
+    except KeyError:
+        has_LHEWeight_originalXWGTUP = False
+
+    has_genWeight = True
+    try:
+        genWeight = evts["genWeight"]
+    except KeyError:
+        has_genWeight = False
+
+    return True, 999.0
+
+
 def test_file(f):
     success = False
+    sum_weights = None
     for redirector in Redirectors:
         try:
-            uproot.open(f"{redirector}{f}")
-            success = True
+            evts = uproot.open(f"{redirector}{f}:Events")
+            success, sum_weights = get_sum_weights(evts)  # type:ignore
             break
         except:
             continue
 
-    return success, f
+    return success, f, sum_weights
 
 
 class ProcessGroup(StrEnum):
@@ -67,6 +84,7 @@ class Dataset(BaseModel):
     k_factor: float
     lfns: list[str] | None = None
     generator_filter: str | None = None
+    sum_weights: float | None = None
 
     def short_str(self) -> str:
         return f"[{self.process_name}]_[{self.process_group}]_[{self.year}]_[{self.lhc_run}]_[{self.dataset_type}]"
@@ -98,11 +116,12 @@ class Dataset(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def build_lfn_list(self) -> Self:
+    def build_lfn_list_and_sum_weights(self) -> Self:
         MIN_PERCENT_FILES = 0.6
 
         if self.lfns is None:
             self.lfns = []
+            self.sum_weights = 0.0
             for das_name in self.das_names:
                 logger.info(f"\nTesting files for {das_name}...")
                 all_files = [
@@ -110,6 +129,7 @@ class Dataset(BaseModel):
                     for file in dbs.listFiles(dataset=das_name)
                 ]
                 results = []
+                sum_weights = 0.0
                 with ProcessPoolExecutor() as ex:
                     futures = [ex.submit(test_file, f) for f in all_files]
                     for fut in track(
@@ -117,13 +137,16 @@ class Dataset(BaseModel):
                         total=len(futures),
                         description=f"Processing...",
                     ):
-                        success, f = fut.result()
+                        success, f, _sum_weights = fut.result()
                         if success:
                             results.append(f)
+                            assert _sum_weights is not None
+                            sum_weights += _sum_weights
 
                 if len(results) / len(all_files) < MIN_PERCENT_FILES:
                     raise RuntimeError(f"Not enough files passed test for {das_name}")
 
                 self.lfns += results
+                self.sum_weights += sum_weights
 
         return self
