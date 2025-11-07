@@ -7,22 +7,22 @@ import uproot
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
-
 from ..dataset import Dataset
 from ..redirectors import Redirectors
 from .corrections.jet_veto_maps import JetVetoMaps
 from .corrections.lumi_filter import LumiMask
 from .corrections.met_filters import compute_met_filters
 from .electrons import _build_electrons
+from .flags import _build_flags
+from .hlt_bits import _build_hlt_bits
+from .int_lumi import _build_int_lumi
 from .jets import _build_jets
 from .met import _build_met
-from .flags import _build_flags
-from .run_lumi import _build_run_lumi
-from .hlt_bits import _build_hlt_bits
-from .trigobjs import _build_trigobjs
 from .muons import _build_muons
 from .photons import _build_photons
+from .run_lumi import _build_run_lumi
 from .taus import _build_taus
+from .trigobjs import _build_trigobjs
 
 logger = logging.getLogger("Events")
 
@@ -114,6 +114,7 @@ class EventsBuilder:
         jets = _build_jets(evts, self.dataset)
         met = _build_met(evts, jets)
         flags = _build_flags(evts)
+        int_lumi = _build_int_lumi(evts, run, self.dataset)
 
         data = ak.zip(
             {
@@ -128,13 +129,10 @@ class EventsBuilder:
                 "jets": jets,
                 "met": met,
                 "flags": flags,
+                "int_lumi": int_lumi,
             },
             depth_limit=1,  # zip at the event level only
         )
-        print(data)
-        print(data.muons[1])
-        print(data.muons.px)
-        print(data.muons.pt)
 
         events = Events(data=ak.Array(data))
 
@@ -154,6 +152,5 @@ class EventsBuilder:
             "jet_veto_maps",
             jet_veto_maps(events.data.jets, events.data.muons),
         )
-        print(events.event_filters)
 
         return events

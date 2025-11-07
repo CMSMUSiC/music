@@ -10,7 +10,7 @@ import typer
 from rich.progress import track
 
 import cmsmusic as msc
-from cmsmusic.datasets import DatasetType
+from cmsmusic.dataset import DatasetType
 from cmsmusic.logging_config import setup_logging
 
 
@@ -150,9 +150,9 @@ def run_serial(
                         )
                     ):
                         if max_files <= 0 or (max_files > 0 and i + 1 <= max_files):
-                            run_classification(i, dataset, verbose, enable_cache)
+                            run_classification(i, dataset, enable_cache)
                 case int():
-                    run_classification(file_index, dataset, verbose, enable_cache)
+                    run_classification(file_index, dataset, enable_cache)
 
 
 @classification_app.command()

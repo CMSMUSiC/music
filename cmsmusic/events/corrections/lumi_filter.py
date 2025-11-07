@@ -2,16 +2,14 @@ import json
 from pathlib import Path
 
 import awkward
-import numpy as np
 import numba
 import numpy
+import numpy as np
 from numba import types
 from numba.typed import Dict
 
-from ...eras import Year
 from ...dataset import Dataset, DatasetType
-from cmsmusic import datasets
-
+from ...eras import Year
 
 _numba_bool = None
 if hasattr(types, "bool"):
