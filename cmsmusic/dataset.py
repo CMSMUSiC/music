@@ -23,36 +23,6 @@ except KeyError as _:
     os.environ["USER"] = getpass.getuser()
 
 
-def get_sum_weights(evts: uproot.TTree):
-    has_LHEWeight_originalXWGTUP = True
-    try:
-        LHEWeight_originalXWGTUP = evts["LHEWeight_originalXWGTUP"]
-    except KeyError:
-        has_LHEWeight_originalXWGTUP = False
-
-    has_genWeight = True
-    try:
-        genWeight = evts["genWeight"]
-    except KeyError:
-        has_genWeight = False
-
-    return True, 999.0
-
-
-def test_file(f):
-    success = False
-    sum_weights = None
-    for redirector in Redirectors:
-        try:
-            evts = uproot.open(f"{redirector}{f}:Events")
-            success, sum_weights = get_sum_weights(evts)  # type:ignore
-            break
-        except:
-            continue
-
-    return success, f, sum_weights
-
-
 class ProcessGroup(StrEnum):
     DATA = "Data"
     DRELL_YAN = "Drell-Yan"
@@ -71,6 +41,61 @@ class DatasetType(StrEnum):
     SIGNAL = "Signal"
 
 
+def get_sum_weights(evts: uproot.TTree, dataset_type: DatasetType) -> tuple[float, int]:
+    num_events = int(evts.num_entries)
+    if dataset_type == DatasetType.DATA:
+        return float(num_events), num_events
+
+    import awkward as ak
+
+    has_LHEWeight_originalXWGTUP = True
+    LHEWeight_originalXWGTUP = None
+    try:
+        LHEWeight_originalXWGTUP = ak.sum(
+            evts.arrays(["LHEWeight_originalXWGTUP"])["LHEWeight_originalXWGTUP"]
+        )
+    except:
+        has_LHEWeight_originalXWGTUP = False
+
+    has_genWeight = True
+    all_genWeight_are_one = False
+    genWeight = None
+    try:
+        genWeight = ak.sum(evts["genWeight"])
+        all_genWeight_are_one = ak.all(evts.array("genWeight") == 1)
+    except:
+        has_genWeight = False
+
+    if has_genWeight:
+        if not all_genWeight_are_one:
+            assert genWeight is not None
+            return genWeight, num_events
+
+    if has_LHEWeight_originalXWGTUP:
+        assert LHEWeight_originalXWGTUP is not None
+        return LHEWeight_originalXWGTUP, num_events
+
+    raise RuntimeError("could not compute sum of genWeights")
+
+
+def test_file(f: str, dataset_type: DatasetType) -> tuple[bool, str, float, int]:
+    success = False
+    sum_weights = None
+    num_events = None
+    for redirector in Redirectors:
+        try:
+            evts = uproot.open(f"{redirector}{f}:Events")
+            sum_weights, num_events = get_sum_weights(evts, dataset_type)  # type:ignore
+            success = True
+            break
+        except:
+            continue
+
+    assert sum_weights is not None
+    assert num_events is not None
+    return success, f, sum_weights, num_events
+
+
 class Dataset(BaseModel):
     das_names: str | list[str]
     process_name: str | None = None
@@ -85,6 +110,7 @@ class Dataset(BaseModel):
     lfns: list[str] | None = None
     generator_filter: str | None = None
     sum_weights: float | None = None
+    num_events: int | None = None
 
     def short_str(self) -> str:
         return f"[{self.process_name}]_[{self.process_group}]_[{self.year}]_[{self.lhc_run}]_[{self.dataset_type}]"
@@ -122,6 +148,7 @@ class Dataset(BaseModel):
         if self.lfns is None:
             self.lfns = []
             self.sum_weights = 0.0
+            self.num_events = 0
             for das_name in self.das_names:
                 logger.info(f"\nTesting files for {das_name}...")
                 all_files = [
@@ -130,23 +157,29 @@ class Dataset(BaseModel):
                 ]
                 results = []
                 sum_weights = 0.0
+                num_events = 0
                 with ProcessPoolExecutor() as ex:
-                    futures = [ex.submit(test_file, f) for f in all_files]
+                    futures = [
+                        ex.submit(test_file, f, self.dataset_type) for f in all_files
+                    ]
                     for fut in track(
                         as_completed(futures),
                         total=len(futures),
                         description=f"Processing...",
                     ):
-                        success, f, _sum_weights = fut.result()
+                        success, f, _sum_weights, _num_events = fut.result()
                         if success:
                             results.append(f)
                             assert _sum_weights is not None
                             sum_weights += _sum_weights
+                            assert _num_events is not None
+                            num_events += _num_events
 
                 if len(results) / len(all_files) < MIN_PERCENT_FILES:
                     raise RuntimeError(f"Not enough files passed test for {das_name}")
 
                 self.lfns += results
                 self.sum_weights += sum_weights
+                self.num_events += num_events
 
         return self
