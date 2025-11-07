@@ -69,11 +69,11 @@ def get_sum_weights(evts: uproot.TTree, dataset_type: DatasetType) -> tuple[floa
     if has_genWeight:
         if not all_genWeight_are_one:
             assert genWeight is not None
-            return genWeight, num_events
+            return float(genWeight), num_events
 
     if has_LHEWeight_originalXWGTUP:
         assert LHEWeight_originalXWGTUP is not None
-        return LHEWeight_originalXWGTUP, num_events
+        return float(LHEWeight_originalXWGTUP), num_events
 
     raise RuntimeError("could not compute sum of genWeights")
 
