@@ -14,7 +14,7 @@ def _build_photons(evts: uproot.TTree) -> ak.Array:
         Field("Photon_pt"),
         Field("Photon_eta"),
         Field("Photon_phi"),
-        Field("Photon_mass", 0.0),
+        Field("Photon_mass", 0.0, "Photon_pt"),
     ]
 
     _photons = load_fields(fields, evts)

@@ -9,9 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ..dataset import Dataset
 from ..redirectors import Redirectors
-from .corrections.jet_veto_maps import JetVetoMaps
-from .corrections.lumi_filter import LumiMask
-from .corrections.met_filters import compute_met_filters
+from ..filters import JetVetoMaps, LumiMask, compute_met_filters
 from .electrons import _build_electrons
 from .flags import _build_flags
 from .hlt_bits import _build_hlt_bits
@@ -21,6 +19,7 @@ from .met import _build_met
 from .muons import _build_muons
 from .photons import _build_photons
 from .run_lumi import _build_run_lumi
+from .gen_weights import _build_gen_weights
 from .taus import _build_taus
 from .trigobjs import _build_trigobjs
 
@@ -102,9 +101,8 @@ class EventsBuilder:
     def build(self) -> Events:
         evts = load_file(self.input_file, self.enable_cache)
 
-        logger.info(type(evts))
-
         run, lumi = _build_run_lumi(evts)
+        gen_weights = _build_gen_weights(evts)
         hlt_bits = _build_hlt_bits(evts)
         trigobjs = _build_trigobjs(evts)
         muons = _build_muons(evts)
@@ -120,6 +118,7 @@ class EventsBuilder:
             {
                 "run": run,
                 "luminosityBlock": lumi,
+                "gen_weights": gen_weights,
                 "hlt_bits": hlt_bits,
                 "trigobjs": trigobjs,
                 "muons": muons,
@@ -133,6 +132,7 @@ class EventsBuilder:
             },
             depth_limit=1,  # zip at the event level only
         )
+        print(data)
 
         events = Events(data=ak.Array(data))
 

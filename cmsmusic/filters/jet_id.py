@@ -6,9 +6,9 @@ from enum import StrEnum
 
 from cmsmusic.ak_utils import flat_np_view
 
-from ...eras import Year
-from ...ak_utils import *
-from ...dataset import Dataset
+from ..eras import Year
+from ..ak_utils import *
+from ..dataset import Dataset
 
 
 class JetIdWP(StrEnum):

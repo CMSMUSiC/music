@@ -8,8 +8,8 @@ import numpy as np
 from numba import types
 from numba.typed import Dict
 
-from ...dataset import Dataset, DatasetType
-from ...eras import Year
+from ..dataset import Dataset, DatasetType
+from ..eras import Year
 
 _numba_bool = None
 if hasattr(types, "bool"):

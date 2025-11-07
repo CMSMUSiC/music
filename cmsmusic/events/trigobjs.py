@@ -17,7 +17,7 @@ def _build_trigobjs(evts: uproot.TTree) -> ak.Array:
             "TrigObj_id",
             "TrigObj_phi",
             "TrigObj_pt",
-            Field("TrigObj_mass", 0.0),
+            Field("TrigObj_mass", 0.0, "TrigObj_pt"),
         ],
         evts,
     )

@@ -18,8 +18,8 @@ def _build_met(evts: uproot.TTree, jets: ak.Array) -> ak.Array:
             "PuppiMET_phiUnclusteredUp",
             "PuppiMET_ptUnclusteredDown",
             "PuppiMET_ptUnclusteredUp",
-            Field("PuppiMET_mass", 0.0),
-            Field("PuppiMET_eta", 0.0),
+            Field("PuppiMET_mass", 0.0, "PuppiMET_pt"),
+            Field("PuppiMET_eta", 0.0, "PuppiMET_pt"),
         ],
         evts,
     )

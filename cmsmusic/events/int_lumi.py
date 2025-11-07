@@ -9,7 +9,7 @@ def _build_int_lumi(evts: uproot.TTree, runs, dataset: Dataset) -> ak.Array:
     match dataset.year:
         case Year.RunSummer24:
             # From: https://twiki.cern.ch/twiki/bin/viewauth/CMS/PdmVRun3Analysis#DATA_AN1
-            int_lumi = ak.full_like(runs, 109.09)
+            int_lumi = ak.Array([109.09] * evts.num_entries)
         case Year.RunSummer23BPix:
             raise NotImplementedError(dataset.year)
         case Year.RunSummer23:
