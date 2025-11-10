@@ -2,6 +2,7 @@ from typing import Any
 
 from numba import njit
 import vector
+from vector import MomentumObject4D
 import awkward as ak
 import numpy as np
 from numpy.typing import NDArray
@@ -41,7 +42,7 @@ def flat_np_view(ak_array: Any, axis: int | None = None) -> NDArray:
 
 
 @njit(inline="always")
-def make_vector(obj):
+def make_vector(obj: Any) -> MomentumObject4D:
     return vector.obj(pt=obj.pt, eta=obj.eta, phi=obj.phi, mass=obj.mass)
 
 
@@ -49,7 +50,7 @@ vec = make_vector
 
 
 @njit(inline="always")
-def make_null_vector():
+def make_null_vector() -> MomentumObject4D:
     return vector.obj(pt=0.0, eta=0.0, phi=0.0, mass=0.0)
 
 
