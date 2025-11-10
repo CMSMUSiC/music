@@ -238,3 +238,27 @@ def to_hist(jit_hist):
         h[hist.overflow] = float(over_val)
 
     return h
+
+
+def to_root(h):
+    import ROOT
+
+    name = h.name
+    h = to_hist(h)
+
+    # Extract info
+    edges = h.axes[0].edges
+    values = h.values(flow=True)
+    variances = h.variances(flow=True)
+
+    # Create ROOT histogram
+    nbins = len(edges) - 1
+    histo = ROOT.TH1D(name, h.axes[0].label, nbins, edges[0], edges[-1])
+
+    # Fill contents
+    for i in range(nbins + 2):  # include underflow (0) and overflow (nbins+1)
+        histo.SetBinContent(i, values[i])
+        if variances is not None:
+            histo.SetBinError(i, np.sqrt(variances[i]))
+
+    return histo

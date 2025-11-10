@@ -1,14 +1,16 @@
 import logging
 from typing import Literal
+import gc
 
 import awkward as ak
+from numba import njit
 
 from .dataset import Dataset, DatasetType
 from .eras import Year
 from .events import Events, EventsBuilder
 from .utils import vec, null_vec
 from .variation import Variation, VariationEngine, VariationType
-from .nb_hist import make_uniform_hist, make_variable_hist, to_hist
+from .nb_hist import make_uniform_hist, make_variable_hist, to_hist, to_root
 
 logger = logging.getLogger("Classification")
 
@@ -25,6 +27,7 @@ def run_classification(file_index: int, dataset: Dataset, enable_cache: bool) ->
 
     logger.info(f"Processing {dataset.lfns[file_index]} from {dataset.short_str()} ...")
 
+    # define events tranformers
     def lumi_var(
         events: Events, shift: Literal["up"] | Literal["down"]
     ) -> dict[str, ak.Array]:
@@ -54,72 +57,89 @@ def run_classification(file_index: int, dataset: Dataset, enable_cache: bool) ->
 
         return {"int_lumi": events.data.int_lumi * (1 + mult_factor * uncert / 100)}
 
+    # variations to run
     variations = [
         Variation(
             name="Nominal",
             variation_type=VariationType.INTEGRAL,
-            payload=lambda e: {},
+            transformer=lambda e: {},
         ),
         Variation(
             name="Lumi_Up",
             variation_type=VariationType.INTEGRAL,
-            payload=lambda e: lumi_var(e, "up"),
-        ),
-        Variation(
-            name="Lumi_Down",
-            variation_type=VariationType.INTEGRAL,
-            payload=lambda e: lumi_var(e, "down"),
+            transformer=lambda e: lumi_var(e, "up"),
         ),
         Variation(
             name="MuonID_Up",
             variation_type=VariationType.CONSTANT,
-            payload=lambda e: {"muons": e.data.muons * 10_000},
+            transformer=lambda e: {"muons": e.data.muons * 10_000.0},
+        ),
+        Variation(
+            name="MuonID_Down",
+            variation_type=VariationType.CONSTANT,
+            transformer=lambda e: {"muons": e.data.muons / 10_000.0},
+        ),
+        Variation(
+            name="Lumi_Down",
+            variation_type=VariationType.INTEGRAL,
+            transformer=lambda e: lumi_var(e, "down"),
         ),
     ]
 
-    raw_events = EventsBuilder(dataset, file_index, enable_cache).build()
+    # ensure no repeated variations
+    assert len(variations) == len(
+        set([v.name for v in variations])
+    ), "There are repeated variations"
+
+    # load and build event data
+    def apply_nominal_corrections(events):
+        logger.warning("TODO: implement nominal corrections")
+        # events.data.muons["pt"] = events.data.muons.pt * 10e5
+
+        return events
+
+    nominal_events = (
+        EventsBuilder(dataset, file_index, enable_cache)
+        .add_transformation(apply_nominal_corrections)
+        .build()
+    )
+
+    @njit
+    def do_classification(data, event_filter):
+        h = make_uniform_hist(bins=30, low=70.0, high=110.0, name="regular")
+        for idx_evt, evt in enumerate(data):
+            if not event_filter[idx_evt]:
+                continue
+
+            if not evt.hlt_bits.HLT_IsoMu24:
+                continue
+
+            for i, m1 in enumerate(evt.muons):
+                for j, m2 in enumerate(evt.muons):
+                    if j > i:
+                        if m1.pt > 7.0 and m2.pt > 7.0:
+                            m1 = vec(m1)
+                            m2 = vec(m2)
+                            z_cand = m1 + m2
+                            if 70 <= z_cand.mass <= 110.0:
+                                h.fill(z_cand.mass)
+
+        return h
 
     for var in variations:
         if dataset.dataset_type == DatasetType.DATA and var.name != "Nominal":
             continue
 
-        with VariationEngine(var, dataset, raw_events) as events:
-            print(var, dataset.sum_weights, dataset.num_events)
-            events.data.gen_weights.show()
-            events.data.muons.pt.show()
+        with VariationEngine(var, dataset, nominal_events) as events:
+            # here goes the analysis ...
 
-            from numba import njit
-            import numpy as np
+            h = do_classification(events.data, events.get_event_filter())
 
-            bar = 123
+            root_hist = to_root(h)
+            root_hist.Print("all")
+            print(to_hist(h))
+            # print(to_hist(h1), to_hist(h2))
 
-            @njit
-            def foo(data, event_filter):
-                h1 = make_uniform_hist(bins=10, low=0.0, high=13600.0, name="regular")
-                h2 = make_variable_hist(
-                    edges_in=[0.0, 3, 5, 90, 13600], name="non-uniform"
-                )
-                for idx_evt, evt in enumerate(data):
-                    if not event_filter[idx_evt]:
-                        continue
-
-                    _sum = 0.0
-                    for m in evt.muons:
-                        _sum += vec(m).px
-
-                    h1.fill(_sum)
-                    h2.fill(_sum)
-
-                print(bar)
-
-                return (h1, h2)
-
-            h1, h2 = foo(events.data, events.get_event_filter())
-            print(to_hist(h1), to_hist(h2))
-
-            # here goes the analysis
-            # ...
-
-    logger.info(f"Num of events: {raw_events.num_events}")
+    logger.info(f"Num of events: {nominal_events.num_events}")
 
     return

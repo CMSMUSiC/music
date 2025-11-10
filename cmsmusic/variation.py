@@ -14,13 +14,13 @@ class VariationType(IntEnum):
     DIFFERENTIAL = auto()
 
 
-type DataModifier = Callable[[Events], dict[str, ak.Array]]
+type DataTransformer = Callable[[Events], dict[str, ak.Array]]
 
 
 class Variation(NamedTuple):
     name: str
     variation_type: VariationType
-    payload: DataModifier
+    transformer: DataTransformer
 
 
 class VariationEngine:
@@ -28,7 +28,7 @@ class VariationEngine:
         self.variation = variation
         self.events = events
         self.buffer: dict[str, ak.Array]
-        self.payload = self.variation.payload(self.events)
+        self.payload = self.variation.transformer(self.events)
         self.skip = False
 
     def __enter__(self):

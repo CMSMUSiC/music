@@ -1,6 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
+from typing import Self
 
 import awkward as ak
 import uproot
@@ -97,6 +98,11 @@ class EventsBuilder:
         self.input_file = dataset.lfns[file_index]
         self.enable_cache = enable_cache
         self.dataset = dataset
+        self.transformation = None
+
+    def add_transformation(self, transformation) -> Self:
+        self.transformation = transformation
+        return self
 
     def build(self) -> Events:
         evts = load_file(self.input_file, self.enable_cache)
@@ -152,5 +158,8 @@ class EventsBuilder:
             "jet_veto_maps",
             jet_veto_maps(events.data.jets, events.data.muons),
         )
+
+        if self.transformation is not None:
+            events = self.transformation(events)
 
         return events
